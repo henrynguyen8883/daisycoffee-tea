@@ -1,130 +1,165 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getDaysInMonth } from 'date-fns';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
 const ROLES = {
     BARTENDER: { id: 'bartender', label: 'Nhân viên pha chế', rate: 200000 },
     SERVER: { id: 'server', label: 'Nhân viên phục vụ', rate: 160000 },
-    MANAGER: { id: 'manager', label: 'Quản lý', rate: 0 }, // Manager salary not specified, visible only
+    MANAGER: { id: 'manager', label: 'Quản lý', rate: 0 },
 };
-
-const MOCK_USERS = [
-    { id: 'u1', name: 'Nguyễn Văn A', role: 'bartender', password: '123' },
-    { id: 'u2', name: 'Trần Thị B', role: 'server', password: '123' },
-    { id: 'm1', name: 'Quản Lý', role: 'manager', password: 'admin' },
-];
 
 export function AppProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [attendance, setAttendance] = useState({});
+    const [advances, setAdvances] = useState({});
+    const [loading, setLoading] = useState(true);
 
-    // Users Persistence
-    const [users, setUsers] = useState(() => {
-        const saved = localStorage.getItem('users');
-        return saved ? JSON.parse(saved) : MOCK_USERS;
-    });
-
-    // Advances Persistence
-    const [advances, setAdvances] = useState(() => {
-        const saved = localStorage.getItem('advances');
-        return saved ? JSON.parse(saved) : {};
-    });
-
-    // Attendance Persistence
-    const [attendance, setAttendance] = useState(() => {
-        const saved = localStorage.getItem('attendance');
-        return saved ? JSON.parse(saved) : {};
-    });
-
+    // Initial Fetch
     useEffect(() => {
-        localStorage.setItem('advances', JSON.stringify(advances));
-    }, [advances]);
+        fetchData();
+    }, []);
 
-    useEffect(() => {
-        localStorage.setItem('attendance', JSON.stringify(attendance));
-    }, [attendance]);
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [usersRes, attRes, advRes] = await Promise.all([
+                supabase.from('users').select('*'),
+                supabase.from('attendance').select('*'),
+                supabase.from('advances').select('*')
+            ]);
 
-    useEffect(() => {
-        localStorage.setItem('users', JSON.stringify(users));
-    }, [users]);
+            if (usersRes.data) {
+                // Normalize keys (Postgres returns custom_rate, we used customRate)
+                const mappedUsers = usersRes.data.map(u => ({
+                    ...u,
+                    customRate: u.custom_rate // Map snake_case to camelCase
+                }));
+                setUsers(mappedUsers);
+            }
 
-    // Actions
-    const addUser = (userData) => {
-        // Default password if not provided (safety net)
-        const newUser = { ...userData, id: `u${Date.now()}` };
-        setUsers(prev => [...prev, newUser]);
+            // Process Attendance
+            const attMap = {};
+            attRes.data?.forEach(record => {
+                if (!attMap[record.user_id]) attMap[record.user_id] = {};
+                attMap[record.user_id][record.date] = record.status;
+            });
+            setAttendance(attMap);
+
+            // Process Advances
+            const advMap = {};
+            advRes.data?.forEach(record => {
+                if (!advMap[record.user_id]) advMap[record.user_id] = [];
+                advMap[record.user_id].push({
+                    id: record.id,
+                    amount: record.amount,
+                    date: record.date
+                });
+            });
+            setAdvances(advMap);
+
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const updateUser = (id, updates) => {
+    // Actions
+    const addUser = async (userData) => {
+        const newUser = {
+            id: `u${Date.now()}`,
+            name: userData.name,
+            role: userData.role,
+            custom_rate: userData.customRate, // Send snake_case to DB
+            password: userData.password || '123'
+        };
+
+        const { error } = await supabase.from('users').insert([newUser]);
+        if (!error) {
+            setUsers(prev => [...prev, { ...newUser, customRate: newUser.custom_rate }]);
+        } else {
+            console.error("Add user error:", error);
+        }
+    };
+
+    const updateUser = async (id, updates) => {
+        // Map updates to snake_case for DB
+        const dbUpdates = {};
+        if (updates.name) dbUpdates.name = updates.name;
+        if (updates.role) dbUpdates.role = updates.role;
+        if (updates.password) dbUpdates.password = updates.password;
+        if (updates.customRate !== undefined) dbUpdates.custom_rate = updates.customRate;
+
+        // Optimistic Update
         setUsers(prev => prev.map(u => {
             if (u.id === id) {
-                const updatedUser = { ...u, ...updates };
-                // If we are updating the current logged-in user, update session too
-                if (currentUser && currentUser.id === id) {
-                    setCurrentUser(updatedUser);
-                }
-                return updatedUser;
+                const updated = { ...u, ...updates };
+                if (currentUser?.id === id) setCurrentUser(updated);
+                return updated;
             }
             return u;
         }));
+
+        const { error } = await supabase.from('users').update(dbUpdates).eq('id', id);
+        if (error) console.error("Update user error:", error);
     };
 
-    const deleteUser = (id) => {
+    const deleteUser = async (id) => {
         setUsers(prev => prev.filter(u => u.id !== id));
-        setAttendance(prev => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
-        setAdvances(prev => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
+        await supabase.from('users').delete().eq('id', id);
     };
 
     const login = (userId, password) => {
         const user = users.find(u => u.id === userId);
-        if (user) {
-            // Check password for EVERYONE
-            if (user.password && password === user.password) {
-                setCurrentUser(user);
-                return true;
-            }
-            // For legacy users without password, maybe allow? 
-            // Or strictly fail? 
-            // Better to assume stricter security now.
-            // If user has NO password in DB (old data), let's temporary allow or check logic.
-            // But MOCK_USERS now have passwords. 
-            // Let's enforce: fail if password mismatch.
-            return false;
+        if (user && user.password === password) {
+            setCurrentUser(user);
+            return true;
         }
         return false;
     };
 
     const logout = () => setCurrentUser(null);
 
-    const updateAttendance = (userId, dateStr, status) => {
+    const updateAttendance = async (userId, dateStr, status) => {
+        // Optimistic
         setAttendance(prev => {
-            const userRecord = prev[userId] || {};
-            const newRecord = { ...userRecord };
-
-            if (status === null) {
-                delete newRecord[dateStr];
-            } else {
-                newRecord[dateStr] = status;
-            }
-
-            return { ...prev, [userId]: newRecord };
+            const userRecord = { ...(prev[userId] || {}) };
+            if (status === null) delete userRecord[dateStr];
+            else userRecord[dateStr] = status;
+            return { ...prev, [userId]: userRecord };
         });
+
+        if (status === null) {
+            await supabase.from('attendance')
+                .delete()
+                .eq('user_id', userId)
+                .eq('date', dateStr);
+        } else {
+            await supabase.from('attendance').upsert({
+                user_id: userId,
+                date: dateStr,
+                status: status
+            }, { onConflict: 'user_id,date' });
+        }
     };
 
-    const addAdvance = (userId, amount) => {
+    const addAdvance = async (userId, amount) => {
         const dateStr = new Date().toISOString();
-        setAdvances(prev => {
-            const userAdvances = prev[userId] || [];
-            return { ...prev, [userId]: [...userAdvances, { date: dateStr, amount }] };
-        });
+        const { data, error } = await supabase.from('advances').insert([{
+            user_id: userId,
+            amount,
+            date: dateStr
+        }]).select();
+
+        if (data) {
+            setAdvances(prev => {
+                const userAdvances = prev[userId] || [];
+                return { ...prev, [userId]: [...userAdvances, { ...data[0] }] };
+            });
+        }
     };
 
     const calculateSalary = (userId, year, month) => {
@@ -134,9 +169,7 @@ export function AppProvider({ children }) {
         const roleData = Object.values(ROLES).find(r => r.id === user.role);
         if (!roleData) return null;
 
-        // Custom Rate Logic
-        const dailyRate = user.customRate !== undefined ? Number(user.customRate) : roleData.rate;
-
+        const dailyRate = user.customRate !== undefined && user.customRate !== null ? Number(user.customRate) : roleData.rate;
         const userAttendance = attendance[userId] || {};
         const daysInMonth = getDaysInMonth(new Date(year, month));
 
@@ -152,22 +185,13 @@ export function AppProvider({ children }) {
         });
 
         let bonusDays = 0;
-
-        // RULE 1: 31 days month -> +1 day salary
-        if (daysInMonth === 31) {
-            bonusDays += 1;
-        }
-
-        // RULE 2: No off days taken -> +2 days salary
-        if (offDaysTaken === 0 && workedDays > 0) {
-            bonusDays += 2;
-        }
+        if (daysInMonth === 31) bonusDays += 1;
+        if (offDaysTaken === 0 && workedDays > 0) bonusDays += 2;
 
         const totalPaidDays = workedDays + bonusDays;
         const totalSalary = totalPaidDays * dailyRate;
 
-        // Advance Logic
-        // Rule: Max advance = workedDays * dailyRate * 0.7 (Strictly based on Worked Days, excluding Bonus)
+        // Advance Logic - Max 70% of WORKED days (excluding bonus)
         const maxAdvanceLimit = workedDays * dailyRate * 0.7;
 
         const userAdvances = advances[userId] || [];
@@ -188,30 +212,22 @@ export function AppProvider({ children }) {
             offDaysTaken,
             bonusDays,
             rate: dailyRate,
-            totalSalary, // Gross Salary
+            totalSalary,
             maxAdvanceLimit,
             totalAdvanced,
             remainingAdvanceLimit,
-            finalPayout, // Net Salary after advances
+            finalPayout,
             currency: 'VND'
         };
     };
 
     return (
         <AppContext.Provider value={{
-            currentUser,
-            users,
-            login,
-            logout,
-            addUser,
-            updateUser,
-            deleteUser,
-            attendance,
-            updateAttendance,
-            advances,
-            addAdvance,
-            calculateSalary,
-            ROLES
+            currentUser, users, login, logout,
+            addUser, updateUser, deleteUser,
+            attendance, updateAttendance,
+            advances, addAdvance,
+            calculateSalary, ROLES, loading
         }}>
             {children}
         </AppContext.Provider>
