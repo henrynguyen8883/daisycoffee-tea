@@ -15,7 +15,7 @@ export default function MaterialsDashboard() {
 
     // Material Form State (For Adding New Materials)
     const [isAddingMat, setIsAddingMat] = useState(false);
-    const [newMat, setNewMat] = useState({ name: '', base_unit: 'g', base_amount: '1000', base_price: '' });
+    const [newMat, setNewMat] = useState({ name: '', unit: 'g', price_per_unit: '' });
 
     useEffect(() => {
         loadData();
@@ -55,12 +55,11 @@ export default function MaterialsDashboard() {
         try {
             await api.addMaterial({
                 ...newMat,
-                base_amount: parseFloat(newMat.base_amount),
-                base_price: parseFloat(newMat.base_price)
+                price_per_unit: parseFloat(newMat.price_per_unit)
             });
             alert('Thêm nguyên liệu thành công!');
             setIsAddingMat(false);
-            setNewMat({ name: '', base_unit: 'g', base_amount: '1000', base_price: '' });
+            setNewMat({ name: '', unit: 'g', price_per_unit: '' });
             loadData(); // Refresh list
         } catch (error) {
             alert('Lỗi khi thêm nguyên liệu');
@@ -184,8 +183,8 @@ export default function MaterialsDashboard() {
                                     <input required type="text" className="glass-input" placeholder="VD: Matcha Nhật Bản" value={newMat.name} onChange={e => setNewMat({ ...newMat, name: e.target.value })} />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400">Đơn vị cơ sở</label>
-                                    <select className="glass-input" value={newMat.base_unit} onChange={e => setNewMat({ ...newMat, base_unit: e.target.value })}>
+                                    <label className="text-xs font-bold text-slate-400">Đơn vị tính</label>
+                                    <select className="glass-input" value={newMat.unit} onChange={e => setNewMat({ ...newMat, unit: e.target.value })}>
                                         <option value="g">Gam (g)</option>
                                         <option value="ml">Mililit (ml)</option>
                                         <option value="bich">Bịch</option>
@@ -196,17 +195,9 @@ export default function MaterialsDashboard() {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-slate-400">
-                                        Giá Nhập (cho {newMat.base_amount || 1} {newMat.base_unit})
+                                        Giá Nhập (cho 1 {newMat.unit})
                                     </label>
-                                    <input required type="number" className="glass-input" placeholder="VNĐ" value={newMat.base_price} onChange={e => setNewMat({ ...newMat, base_price: e.target.value })} />
-                                </div>
-                                <div className="space-y-2 hidden">
-                                    {/* Hidden Base Amount, default 1 or 1000 based on logic? 
-                                         For simplicity, let user allow 1 unit. 
-                                         If Unit is GRAM, Price is usually per 1kg (1000g) or 100g? 
-                                         Let's allow user to edit Base Amount if needed, or default it.
-                                     */}
-                                    <input type="number" value={newMat.base_amount} onChange={e => setNewMat({ ...newMat, base_amount: e.target.value })} />
+                                    <input required type="number" className="glass-input" placeholder="VNĐ" value={newMat.price_per_unit} onChange={e => setNewMat({ ...newMat, price_per_unit: e.target.value })} />
                                 </div>
                             </div>
                             <div className="mt-4 flex gap-3">
@@ -224,8 +215,7 @@ export default function MaterialsDashboard() {
                                     <th className="p-3 pl-6">ID</th>
                                     <th className="p-3">Tên Nguyên Liệu</th>
                                     <th className="p-3 text-right">Đơn vị</th>
-                                    <th className="p-3 text-right">Giá Gốc</th>
-                                    <th className="p-3 text-right pr-6">Quy đổi chuẩn</th>
+                                    <th className="p-3 text-right font-bold text-amber-500">Giá Nhập</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
@@ -234,13 +224,10 @@ export default function MaterialsDashboard() {
                                         <td className="p-3 pl-6 font-mono text-xs">{m.id}</td>
                                         <td className="p-3 font-medium text-white">{m.name}</td>
                                         <td className="p-3 text-right">
-                                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">{m.base_unit}</span>
+                                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">{m.unit}</span>
                                         </td>
                                         <td className="p-3 text-right font-bold text-amber-400 font-mono-numbers">
-                                            {m.base_price.toLocaleString()} ₫
-                                        </td>
-                                        <td className="p-3 text-right pr-6 text-xs text-slate-500">
-                                            / {m.base_amount} {m.base_unit}
+                                            {m.price_per_unit ? m.price_per_unit.toLocaleString() : 0} ₫ / {m.unit}
                                         </td>
                                     </tr>
                                 ))}
@@ -248,6 +235,7 @@ export default function MaterialsDashboard() {
                         </table>
                     </div>
                 </div>
+
             )}
         </div>
     );

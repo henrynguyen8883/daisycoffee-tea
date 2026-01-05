@@ -179,7 +179,7 @@ export default function MaterialsInput({ currentUser }) {
                                             >
                                                 <span>{m.name}</span>
                                                 <span className="text-xs text-slate-500 font-mono tracking-wider bg-slate-800 px-2 py-0.5 rounded">
-                                                    {m.base_unit}
+                                                    {m.unit}
                                                 </span>
                                             </button>
                                         ))
@@ -205,7 +205,7 @@ export default function MaterialsInput({ currentUser }) {
                                     onChange={e => setQuantity(e.target.value)}
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
-                                    {selectedMaterial?.base_unit || 'Đơn vị'}
+                                    {selectedMaterial?.unit || 'Đơn vị'}
                                 </span>
                             </div>
                         </div>
