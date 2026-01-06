@@ -39,12 +39,12 @@ export default function MaterialsDashboard() {
     };
 
     // --- LOGIC: REPORT ---
-    const totalCost = reportData.reduce((sum, item) => sum + item.total_price, 0);
+    const totalCost = reportData.reduce((sum, item) => sum + (item.total_price || 0), 0);
     const groupedByDate = reportData.reduce((acc, item) => {
         const dateKey = item.date;
         if (!acc[dateKey]) acc[dateKey] = { items: [], total: 0 };
         acc[dateKey].items.push(item);
-        acc[dateKey].total += item.total_price;
+        acc[dateKey].total += (item.total_price || 0);
         return acc;
     }, {});
     const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
