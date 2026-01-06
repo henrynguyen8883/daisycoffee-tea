@@ -179,7 +179,7 @@ export default function MaterialsInput({ currentUser }) {
                                             >
                                                 <span>{m.name}</span>
                                                 <span className="text-xs text-slate-500 font-mono tracking-wider bg-slate-800 px-2 py-0.5 rounded">
-                                                    {m.unit}
+                                                    {m.unit} {m.base_amount > 1 ? `(${m.base_amount}g/ml)` : ''}
                                                 </span>
                                             </button>
                                         ))

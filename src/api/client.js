@@ -20,6 +20,7 @@ export const api = {
             name: material.name,
             unit: material.unit,
             price_per_unit: material.price_per_unit || material.base_price || 0,
+            base_amount: material.base_amount || 1, // Default 1 if not specified
             category: material.category || 'Other'
         };
 
@@ -34,6 +35,7 @@ export const api = {
             name: material.name,
             unit: material.unit,
             price_per_unit: material.price_per_unit || 0,
+            base_amount: material.base_amount || 1,
             category: material.category || 'Other'
         };
 
@@ -59,7 +61,7 @@ export const api = {
 
     // --- Usage Logs ---
     logUsage: async (usageData) => {
-        // 1. Fetch Material to get current Price
+        // 1. Fetch Material to get current Price & Base Amount
         const { data: material, error: matError } = await supabase
             .from('materials')
             .select('*')
@@ -68,17 +70,24 @@ export const api = {
 
         if (matError || !material) throw new Error('Material not found');
 
+        const baseAmount = material.base_amount || 1;
+        const pricePerPackage = material.price_per_unit; // This is now "Price Per Package" (e.g. 350k)
+
         // 2. Calculate Cost
-        // Schema: price_per_unit is Cost Per 1 Unit (g, ml, or pcs)
         let totalCost = 0;
 
+        // If usage is by Weight (g/ml) and material matches (g/ml)
         if (usageData.weight && (material.unit === 'g' || material.unit === 'ml')) {
-            // Price is per gram/ml
-            totalCost = usageData.weight * material.price_per_unit;
-        } else if (usageData.quantity) {
-            // Price is per piece/bag (if unit is pcs/hop/cai)
-            // OR if it's 'g' but quantity used (logic ambiguity, fallback to direct Mult)
-            totalCost = usageData.quantity * material.price_per_unit;
+            // Cost = (Weight Used / Package Weight) * Package Price
+            // e.g. Used 50g from 500g Bag (350k) -> (50/500) * 350k = 35k
+            totalCost = (usageData.weight / baseAmount) * pricePerPackage;
+        }
+        // If usage is by Quantity (Bag, Box, Pcs)
+        // OR "g" unit but input as Quantity (e.g. 2 bags of Matcha)
+        else if (usageData.quantity) {
+            // Cost = Quantity * Package Price
+            // e.g. Used 2 Bags -> 2 * 350k
+            totalCost = usageData.quantity * pricePerPackage;
         }
 
         // 3. Insert Log
@@ -86,6 +95,7 @@ export const api = {
             material_id: usageData.material_id,
             date: usageData.date,
             quantity: usageData.quantity || 0,
+            weight: usageData.weight || 0, // Ensure weight is also saved if present
             total_cost: totalCost
         }]).select();
 

@@ -56,7 +56,8 @@ export default function MaterialsDashboard() {
         setNewMat({
             name: material.name,
             unit: material.unit,
-            price_per_unit: material.price_per_unit
+            price_per_unit: material.price_per_unit,
+            base_amount: material.base_amount || 1
         });
         setEditingId(material.id);
         setIsAddingMat(true);
@@ -78,7 +79,8 @@ export default function MaterialsDashboard() {
         try {
             const materialData = {
                 ...newMat,
-                price_per_unit: parseFloat(newMat.price_per_unit)
+                price_per_unit: parseFloat(newMat.price_per_unit),
+                base_amount: parseFloat(newMat.base_amount || 1)
             };
 
             if (editingId) {
@@ -90,7 +92,7 @@ export default function MaterialsDashboard() {
             }
 
             setIsAddingMat(false);
-            setNewMat({ name: '', unit: 'g', price_per_unit: '' });
+            setNewMat({ name: '', unit: 'g', price_per_unit: '', base_amount: '' });
             setEditingId(null);
             loadData();
         } catch (error) {
@@ -204,7 +206,7 @@ export default function MaterialsDashboard() {
                         <button onClick={() => {
                             setIsAddingMat(true);
                             setEditingId(null);
-                            setNewMat({ name: '', unit: 'g', price_per_unit: '' });
+                            setNewMat({ name: '', unit: 'g', price_per_unit: '', base_amount: '' });
                         }} className="glass-button primary">
                             <Plus size={18} /> Thêm Mới
                         </button>
@@ -216,7 +218,7 @@ export default function MaterialsDashboard() {
                             <h4 className="font-bold text-amber-400 mb-4 uppercase text-xs tracking-wider">
                                 {editingId ? 'Cập Nhật Nguyên Liệu' : 'Thêm Nguyên Liệu Mới'}
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-400">Tên Nguyên Liệu</label>
                                     <input required type="text" className="glass-input" placeholder="VD: Matcha Nhật Bản" value={newMat.name} onChange={e => setNewMat({ ...newMat, name: e.target.value })} />
@@ -233,12 +235,38 @@ export default function MaterialsDashboard() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-400">Quy cách (nếu có)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            className="glass-input pr-8"
+                                            placeholder="VD: 500"
+                                            value={newMat.base_amount || ''}
+                                            onChange={e => setNewMat({ ...newMat, base_amount: e.target.value })}
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs text-right">
+                                            (g/ml)
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-xs font-bold text-slate-400">
-                                        Giá Nhập (cho 1 {newMat.unit})
+                                        Giá Nhập
                                     </label>
                                     <input required type="number" className="glass-input" placeholder="VNĐ" value={newMat.price_per_unit} onChange={e => setNewMat({ ...newMat, price_per_unit: e.target.value })} />
                                 </div>
                             </div>
+
+                            {/* Callout Info: Unit Price Calculation */}
+                            {newMat.price_per_unit && newMat.base_amount > 1 && (
+                                <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400 flex items-center gap-2">
+                                    <span>👉 Giá trung bình:</span>
+                                    <span className="font-bold font-mono">
+                                        {(newMat.price_per_unit / newMat.base_amount).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} đ
+                                    </span>
+                                    <span>/ 1 g (ml)</span>
+                                </div>
+                            )}
                             <div className="mt-4 flex gap-3">
                                 <button type="submit" className="glass-button primary">
                                     {editingId ? 'Cập Nhật' : 'Lưu Nguyên Liệu'}
@@ -246,7 +274,7 @@ export default function MaterialsDashboard() {
                                 <button type="button" onClick={() => {
                                     setIsAddingMat(false);
                                     setEditingId(null);
-                                    setNewMat({ name: '', unit: 'g', price_per_unit: '' });
+                                    setNewMat({ name: '', unit: 'g', price_per_unit: '', base_amount: '' });
                                 }} className="glass-button">Hủy</button>
                             </div>
                         </form>
@@ -265,36 +293,60 @@ export default function MaterialsDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {materials.map(m => (
-                                    <tr key={m.id} className="hover:bg-white/5 transition-colors group">
-                                        <td className="p-3 pl-6 font-mono text-xs">{m.id}</td>
-                                        <td className="p-3 font-medium text-white">{m.name}</td>
-                                        <td className="p-3 text-right">
-                                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">{m.unit}</span>
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-amber-400 font-mono-numbers">
-                                            {m.price_per_unit ? m.price_per_unit.toLocaleString() : 0} ₫ / {m.unit}
-                                        </td>
-                                        <td className="p-3 text-right pr-6">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => handleEdit(m)}
-                                                    className="p-1.5 hover:bg-blue-500/20 hover:text-blue-400 rounded transition-colors"
-                                                    title="Sửa"
-                                                >
-                                                    <Settings size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(m.id)}
-                                                    className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded transition-colors"
-                                                    title="Xóa"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {materials.map(m => {
+                                    const baseAmount = m.base_amount || 1;
+                                    const unitPrice = m.price_per_unit / baseAmount;
+
+                                    return (
+                                        <tr key={m.id} className="hover:bg-white/5 transition-colors group">
+                                            <td className="p-3 pl-6 font-mono text-xs">{m.id}</td>
+                                            <td className="p-3 font-medium text-white">
+                                                {m.name}
+                                                {baseAmount > 1 && (
+                                                    <div className="text-xs text-slate-500 font-normal mt-0.5">
+                                                        Quy đổi: {unitPrice.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}đ / 1{m.unit}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">
+                                                    {m.unit}
+                                                </span>
+                                            </td>
+                                            <td className="p-3 text-right font-bold text-amber-400 font-mono-numbers">
+                                                {m.price_per_unit ? m.price_per_unit.toLocaleString() : 0} ₫
+                                                {baseAmount > 1 && (
+                                                    <span className="text-xs text-slate-500 font-normal ml-1">
+                                                        / {baseAmount} {m.unit}
+                                                    </span>
+                                                )}
+                                                {baseAmount <= 1 && (
+                                                    <span className="text-xs text-slate-500 font-normal ml-1">
+                                                        / {m.unit}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-right pr-6">
+                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => handleEdit(m)}
+                                                        className="p-1.5 hover:bg-blue-500/20 hover:text-blue-400 rounded transition-colors"
+                                                        title="Sửa"
+                                                    >
+                                                        <Settings size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(m.id)}
+                                                        className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded transition-colors"
+                                                        title="Xóa"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
