@@ -184,7 +184,7 @@ export default function MaterialsDashboard() {
                                                             {item.weight ? <span className="text-blue-300">{item.weight} g/ml</span> : '-'}
                                                         </td>
                                                         <td className="p-3 text-right pr-4 font-bold font-mono-numbers text-emerald-400">
-                                                            {item.total_price.toLocaleString()}đ
+                                                            {(item.total_price || 0).toLocaleString()}đ
                                                         </td>
                                                     </tr>
                                                 ))}
