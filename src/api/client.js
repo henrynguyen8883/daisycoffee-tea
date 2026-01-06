@@ -117,10 +117,12 @@ export const api = {
 
         // Transform if necessary to match UI expectation
         // UI likely expects: materialName, unit, ...
+        // UI Expects: material_name, base_unit, total_price
         const reportData = data.map(item => ({
             ...item,
-            materialName: item.materials?.name,
-            unit: item.materials?.unit
+            material_name: item.materials?.name || 'Unknown',
+            base_unit: item.materials?.unit || '',
+            total_price: item.total_cost || 0
         }));
 
         return { data: reportData };
