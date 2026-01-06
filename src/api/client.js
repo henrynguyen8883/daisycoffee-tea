@@ -29,6 +29,34 @@ export const api = {
         return { data: data[0] };
     },
 
+    updateMaterial: async (id, material) => {
+        const dbMaterial = {
+            name: material.name,
+            unit: material.unit,
+            price_per_unit: material.price_per_unit || 0,
+            category: material.category || 'Other'
+        };
+
+        const { data, error } = await supabase
+            .from('materials')
+            .update(dbMaterial)
+            .eq('id', id)
+            .select();
+
+        if (error) throw error;
+        return { data: data[0] };
+    },
+
+    deleteMaterial: async (id) => {
+        const { error } = await supabase
+            .from('materials')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        return { success: true };
+    },
+
     // --- Usage Logs ---
     logUsage: async (usageData) => {
         // 1. Fetch Material to get current Price

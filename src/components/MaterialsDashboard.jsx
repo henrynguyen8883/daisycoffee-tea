@@ -50,19 +50,52 @@ export default function MaterialsDashboard() {
     const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
 
     // --- LOGIC: CATALOG ---
-    const handleAddMaterial = async (e) => {
+    const [editingId, setEditingId] = useState(null);
+
+    const handleEdit = (material) => {
+        setNewMat({
+            name: material.name,
+            unit: material.unit,
+            price_per_unit: material.price_per_unit
+        });
+        setEditingId(material.id);
+        setIsAddingMat(true);
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Bạn có chắc muốn xóa nguyên liệu này không?')) return;
+        try {
+            await api.deleteMaterial(id);
+            loadData();
+        } catch (error) {
+            console.error(error);
+            alert('Lỗi khi xóa nguyên liệu');
+        }
+    };
+
+    const handleSaveMaterial = async (e) => {
         e.preventDefault();
         try {
-            await api.addMaterial({
+            const materialData = {
                 ...newMat,
                 price_per_unit: parseFloat(newMat.price_per_unit)
-            });
-            alert('Thêm nguyên liệu thành công!');
+            };
+
+            if (editingId) {
+                await api.updateMaterial(editingId, materialData);
+                alert('Cập nhật thành công!');
+            } else {
+                await api.addMaterial(materialData);
+                alert('Thêm mới thành công!');
+            }
+
             setIsAddingMat(false);
             setNewMat({ name: '', unit: 'g', price_per_unit: '' });
-            loadData(); // Refresh list
+            setEditingId(null);
+            loadData();
         } catch (error) {
-            alert('Lỗi khi thêm nguyên liệu');
+            console.error(error);
+            alert('Lỗi khi lưu nguyên liệu');
         }
     };
 
@@ -168,15 +201,21 @@ export default function MaterialsDashboard() {
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-bold text-slate-200">Danh Mục Nguyên Liệu & Giá</h3>
-                        <button onClick={() => setIsAddingMat(true)} className="glass-button primary">
+                        <button onClick={() => {
+                            setIsAddingMat(true);
+                            setEditingId(null);
+                            setNewMat({ name: '', unit: 'g', price_per_unit: '' });
+                        }} className="glass-button primary">
                             <Plus size={18} /> Thêm Mới
                         </button>
                     </div>
 
                     {/* Add Form */}
                     {isAddingMat && (
-                        <form onSubmit={handleAddMaterial} className="glass-panel p-6 border border-amber-500/30 bg-amber-900/10">
-                            <h4 className="font-bold text-amber-400 mb-4 uppercase text-xs tracking-wider">Thêm Nguyên Liệu Mới</h4>
+                        <form onSubmit={handleSaveMaterial} className="glass-panel p-6 border border-amber-500/30 bg-amber-900/10">
+                            <h4 className="font-bold text-amber-400 mb-4 uppercase text-xs tracking-wider">
+                                {editingId ? 'Cập Nhật Nguyên Liệu' : 'Thêm Nguyên Liệu Mới'}
+                            </h4>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-400">Tên Nguyên Liệu</label>
@@ -201,8 +240,14 @@ export default function MaterialsDashboard() {
                                 </div>
                             </div>
                             <div className="mt-4 flex gap-3">
-                                <button type="submit" className="glass-button primary">Lưu Nguyên Liệu</button>
-                                <button type="button" onClick={() => setIsAddingMat(false)} className="glass-button">Hủy</button>
+                                <button type="submit" className="glass-button primary">
+                                    {editingId ? 'Cập Nhật' : 'Lưu Nguyên Liệu'}
+                                </button>
+                                <button type="button" onClick={() => {
+                                    setIsAddingMat(false);
+                                    setEditingId(null);
+                                    setNewMat({ name: '', unit: 'g', price_per_unit: '' });
+                                }} className="glass-button">Hủy</button>
                             </div>
                         </form>
                     )}
@@ -216,11 +261,12 @@ export default function MaterialsDashboard() {
                                     <th className="p-3">Tên Nguyên Liệu</th>
                                     <th className="p-3 text-right">Đơn vị</th>
                                     <th className="p-3 text-right font-bold text-amber-500">Giá Nhập</th>
+                                    <th className="p-3 text-right pr-6">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {materials.map(m => (
-                                    <tr key={m.id} className="hover:bg-white/5 transition-colors">
+                                    <tr key={m.id} className="hover:bg-white/5 transition-colors group">
                                         <td className="p-3 pl-6 font-mono text-xs">{m.id}</td>
                                         <td className="p-3 font-medium text-white">{m.name}</td>
                                         <td className="p-3 text-right">
@@ -228,6 +274,24 @@ export default function MaterialsDashboard() {
                                         </td>
                                         <td className="p-3 text-right font-bold text-amber-400 font-mono-numbers">
                                             {m.price_per_unit ? m.price_per_unit.toLocaleString() : 0} ₫ / {m.unit}
+                                        </td>
+                                        <td className="p-3 text-right pr-6">
+                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => handleEdit(m)}
+                                                    className="p-1.5 hover:bg-blue-500/20 hover:text-blue-400 rounded transition-colors"
+                                                    title="Sửa"
+                                                >
+                                                    <Settings size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(m.id)}
+                                                    className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded transition-colors"
+                                                    title="Xóa"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
